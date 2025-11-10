@@ -1,0 +1,358 @@
+import React, { useState, useEffect } from 'react';
+import { ShoppingBag, CheckCircle, Clock, XCircle, TrendingUp, Package, DollarSign, LogOut, Eye, Trash2 } from 'lucide-react';
+
+export default function KekarDashboard() {
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [password, setPassword] = useState('');
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState('all');
+  const [showDetail, setShowDetail] = useState(null);
+
+  // Password admin (ganti sesuai kebutuhan)
+  const ADMIN_PASSWORD = 'kekar123';
+
+  useEffect(() => {
+    if (isLoggedIn) {
+      loadOrders();
+    }
+  }, [isLoggedIn]);
+
+  const loadOrders = async () => {
+    setLoading(true);
+    try {
+      const result = await window.storage.list('order:', true);
+      if (result && result.keys) {
+        const ordersData = await Promise.all(
+          result.keys.map(async (key) => {
+            try {
+              const data = await window.storage.get(key, true);
+              return data ? { ...JSON.parse(data.value), id: key } : null;
+            } catch (err) {
+              console.error(`Error loading order ${key}:`, err);
+              return null;
+            }
+          })
+        );
+        const validOrders = ordersData.filter(o => o !== null);
+        setOrders(validOrders.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)));
+      }
+    } catch (error) {
+      console.error('Error loading orders:', error);
+      setOrders([]);
+    }
+    setLoading(false);
+  };
+
+  const handleLogin = (e) => {
+    e.preventDefault();
+    if (password === ADMIN_PASSWORD) {
+      setIsLoggedIn(true);
+    } else {
+      alert('Password salah!');
+    }
+  };
+
+  const updateOrderStatus = async (orderId, newStatus) => {
+    try {
+      const order = orders.find(o => o.id === orderId);
+      if (order) {
+        const updatedOrder = { ...order, status: newStatus };
+        await window.storage.set(orderId, JSON.stringify(updatedOrder), true);
+        loadOrders();
+      }
+    } catch (error) {
+      console.error('Error updating order:', error);
+      alert('Gagal mengupdate status pesanan');
+    }
+  };
+
+  const deleteOrder = async (orderId) => {
+    if (window.confirm('Yakin ingin menghapus pesanan ini?')) {
+      try {
+        await window.storage.delete(orderId, true);
+        loadOrders();
+      } catch (error) {
+        console.error('Error deleting order:', error);
+        alert('Gagal menghapus pesanan');
+      }
+    }
+  };
+
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'pending': return 'bg-yellow-100 text-yellow-800';
+      case 'processing': return 'bg-blue-100 text-blue-800';
+      case 'completed': return 'bg-green-100 text-green-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const getStatusIcon = (status) => {
+    switch (status) {
+      case 'pending': return <Clock className="w-4 h-4" />;
+      case 'processing': return <Package className="w-4 h-4" />;
+      case 'completed': return <CheckCircle className="w-4 h-4" />;
+      default: return null;
+    }
+  };
+
+  const filteredOrders = filter === 'all' 
+    ? orders 
+    : orders.filter(o => o.status === filter);
+
+  const stats = {
+    total: orders.length,
+    pending: orders.filter(o => o.status === 'pending').length,
+    processing: orders.filter(o => o.status === 'processing').length,
+    completed: orders.filter(o => o.status === 'completed').length,
+    revenue: orders.filter(o => o.status === 'completed').reduce((sum, o) => sum + o.total, 0)
+  };
+
+  if (!isLoggedIn) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-red-600 to-red-900 flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md">
+          <div className="text-center mb-8">
+            <div className="inline-flex items-center justify-center w-16 h-16 bg-red-100 rounded-full mb-4">
+              <ShoppingBag className="w-8 h-8 text-red-600" />
+            </div>
+            <h1 className="text-3xl font-bold text-gray-800 mb-2">KEKAR Dashboard</h1>
+            <p className="text-gray-600">Login sebagai admin</p>
+          </div>
+          <form onSubmit={handleLogin}>
+            <div className="mb-6">
+              <label className="block text-gray-700 font-semibold mb-2">Password Admin</label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-red-500 focus:outline-none"
+                placeholder="Masukkan password"
+                required
+              />
+            </div>
+            <button
+              type="submit"
+              className="w-full bg-red-600 text-white py-3 rounded-lg font-semibold hover:bg-red-700 transition-colors"
+            >
+              Login
+            </button>
+          </form>
+          <p className="text-xs text-gray-500 text-center mt-4">Default password: kekar123</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <header className="bg-white shadow-sm border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+          <div className="flex justify-between items-center">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-red-600 rounded-lg flex items-center justify-center">
+                <ShoppingBag className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-gray-800">KEKAR Dashboard</h1>
+                <p className="text-sm text-gray-600">Kelola pesanan Anda</p>
+              </div>
+            </div>
+            <button
+              onClick={() => setIsLoggedIn(false)}
+              className="flex items-center gap-2 px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+            >
+              <LogOut className="w-4 h-4" />
+              Logout
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
+          <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-gray-600 text-sm font-medium">Total Pesanan</p>
+              <ShoppingBag className="w-5 h-5 text-gray-400" />
+            </div>
+            <p className="text-3xl font-bold text-gray-800">{stats.total}</p>
+          </div>
+
+          <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-gray-600 text-sm font-medium">Pending</p>
+              <Clock className="w-5 h-5 text-yellow-500" />
+            </div>
+            <p className="text-3xl font-bold text-yellow-600">{stats.pending}</p>
+          </div>
+
+          <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-gray-600 text-sm font-medium">Diproses</p>
+              <Package className="w-5 h-5 text-blue-500" />
+            </div>
+            <p className="text-3xl font-bold text-blue-600">{stats.processing}</p>
+          </div>
+
+          <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-gray-600 text-sm font-medium">Selesai</p>
+              <CheckCircle className="w-5 h-5 text-green-500" />
+            </div>
+            <p className="text-3xl font-bold text-green-600">{stats.completed}</p>
+          </div>
+
+          <div className="bg-gradient-to-br from-red-600 to-red-700 rounded-xl shadow-sm p-6">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-red-100 text-sm font-medium">Pendapatan</p>
+              <DollarSign className="w-5 h-5 text-red-200" />
+            </div>
+            <p className="text-3xl font-bold text-white">
+              Rp {stats.revenue.toLocaleString('id-ID')}
+            </p>
+          </div>
+        </div>
+
+        {/* Filter Tabs */}
+        <div className="bg-white rounded-xl shadow-sm p-4 mb-6 border border-gray-200">
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => setFilter('all')}
+              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                filter === 'all' ? 'bg-red-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              Semua ({orders.length})
+            </button>
+            <button
+              onClick={() => setFilter('pending')}
+              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                filter === 'pending' ? 'bg-yellow-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              Pending ({stats.pending})
+            </button>
+            <button
+              onClick={() => setFilter('processing')}
+              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                filter === 'processing' ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              Diproses ({stats.processing})
+            </button>
+            <button
+              onClick={() => setFilter('completed')}
+              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                filter === 'completed' ? 'bg-green-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              Selesai ({stats.completed})
+            </button>
+          </div>
+        </div>
+
+        {/* Orders List */}
+        {loading ? (
+          <div className="text-center py-12">
+            <div className="inline-block w-12 h-12 border-4 border-red-600 border-t-transparent rounded-full animate-spin"></div>
+            <p className="text-gray-600 mt-4">Memuat data...</p>
+          </div>
+        ) : filteredOrders.length === 0 ? (
+          <div className="bg-white rounded-xl shadow-sm p-12 text-center border border-gray-200">
+            <ShoppingBag className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+            <p className="text-gray-600 text-lg">Belum ada pesanan</p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {filteredOrders.map((order) => (
+              <div key={order.id} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                <div className="p-6">
+                  <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-4">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3 mb-2">
+                        <h3 className="text-xl font-bold text-gray-800">{order.name}</h3>
+                        <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold ${getStatusColor(order.status)}`}>
+                          {getStatusIcon(order.status)}
+                          {order.status === 'pending' ? 'Pending' : order.status === 'processing' ? 'Diproses' : 'Selesai'}
+                        </span>
+                      </div>
+                      <p className="text-gray-600 text-sm">
+                        {new Date(order.timestamp).toLocaleString('id-ID', {
+                          day: 'numeric',
+                          month: 'long',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-2xl font-bold text-red-600">
+                        Rp {order.total.toLocaleString('id-ID')}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="bg-gray-50 rounded-lg p-4 mb-4">
+                    <h4 className="font-semibold text-gray-700 mb-2">Detail Pesanan:</h4>
+                    <div className="space-y-1 text-sm text-gray-600">
+                      {order.sosisQty > 0 && (
+                        <p>• Sosis Bakar: {order.sosisQty} porsi (Rp {(order.sosisQty * 5000).toLocaleString('id-ID')})</p>
+                      )}
+                      {order.pentolQty > 0 && (
+                        <p>• Pentol Bakar: {order.pentolQty} porsi (Rp {(order.pentolQty * 4000).toLocaleString('id-ID')})</p>
+                      )}
+                      {order.notes && (
+                        <p className="mt-2 text-gray-700">
+                          <span className="font-semibold">Catatan:</span> {order.notes}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    {order.status === 'pending' && (
+                      <button
+                        onClick={() => updateOrderStatus(order.id, 'processing')}
+                        className="flex-1 sm:flex-none px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                      >
+                        Proses Pesanan
+                      </button>
+                    )}
+                    {order.status === 'processing' && (
+                      <button
+                        onClick={() => updateOrderStatus(order.id, 'completed')}
+                        className="flex-1 sm:flex-none px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium"
+                      >
+                        Tandai Selesai
+                      </button>
+                    )}
+                    {order.status === 'completed' && (
+                      <button
+                        onClick={() => updateOrderStatus(order.id, 'pending')}
+                        className="flex-1 sm:flex-none px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors font-medium"
+                      >
+                        Kembalikan ke Pending
+                      </button>
+                    )}
+                    <button
+                      onClick={() => deleteOrder(order.id)}
+                      className="px-4 py-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition-colors font-medium flex items-center gap-2"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      Hapus
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </main>
+    </div>
+  );
+}
